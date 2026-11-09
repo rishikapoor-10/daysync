@@ -9,7 +9,8 @@ import {
   Plus, 
   Check, 
   Trash2,
-  Users
+  Users,
+  GraduationCap
 } from 'lucide-react';
 import { StudySubject, StudySession, UserProfile } from '@/lib/types';
 
@@ -40,13 +41,22 @@ export default function StudyTracker({
 
   // User Filter for Viewing and Logging
   const [targetUserId, setTargetUserId] = useState<string>(currentUser.id);
+  // Stream tab filter ('ALL' or 'CS' | 'LLB' for Dhruvi, 'MBA' | 'LAW' for Rishi)
+  const [selectedStream, setSelectedStream] = useState<string>('ALL');
 
-  // Filter subjects and sessions for the selected target user
-  const displayedSubjects = allSubjects.filter(s => s.userId === targetUserId);
+  // Filter subjects for the selected target user
+  const userSubjects = allSubjects.filter(s => s.userId === targetUserId);
+  const availableStreams = Array.from(new Set(userSubjects.map(s => s.stream).filter(Boolean))) as string[];
+
+  const displayedSubjects = userSubjects.filter(s => {
+    if (selectedStream === 'ALL') return true;
+    return s.stream === selectedStream;
+  });
+
   const displayedSessions = allStudySessions.filter(s => s.userId === targetUserId && s.date === todayStr);
 
   // Stopwatch state
-  const [activeSubjectId, setActiveSubjectId] = useState<string>(displayedSubjects[0]?.id || '');
+  const [activeSubjectId, setActiveSubjectId] = useState<string>(displayedSubjects[0]?.id || userSubjects[0]?.id || '');
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [questionsAttempted, setQuestionsAttempted] = useState<number>(0);
@@ -57,25 +67,34 @@ export default function StudyTracker({
   // Manual session modal
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [manualDuration, setManualDuration] = useState(45);
-  const [manualSubjectId, setManualSubjectId] = useState(displayedSubjects[0]?.id || '');
+  const [manualSubjectId, setManualSubjectId] = useState(displayedSubjects[0]?.id || userSubjects[0]?.id || '');
 
   // Add Subject state
   const [isAddingSubject, setIsAddingSubject] = useState(false);
   const [newSubUserId, setNewSubUserId] = useState<string>(targetUserId);
+  const [newSubStream, setNewSubStream] = useState<string>(targetUserId === 'user_dhruvi' ? 'CS' : 'MBA');
   const [newSubName, setNewSubName] = useState('');
   const [newSubColor, setNewSubColor] = useState('#E07A5F');
-  const [newSubTargetMins, setNewSubTargetMins] = useState(60);
+  const [newSubTargetMins, setNewSubTargetMins] = useState(45);
   const [newSubPriority, setNewSubPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [newSubTopic, setNewSubTopic] = useState('');
 
-  // Update subject picker when target user changes
+  // Update subject picker when target user or stream changes
   useEffect(() => {
-    const list = allSubjects.filter(s => s.userId === targetUserId);
+    setSelectedStream('ALL');
+  }, [targetUserId]);
+
+  useEffect(() => {
+    const list = displayedSubjects.length > 0 ? displayedSubjects : userSubjects;
     if (list.length > 0) {
-      setActiveSubjectId(list[0].id);
-      setManualSubjectId(list[0].id);
+      if (!list.some(s => s.id === activeSubjectId)) {
+        setActiveSubjectId(list[0].id);
+      }
+      if (!list.some(s => s.id === manualSubjectId)) {
+        setManualSubjectId(list[0].id);
+      }
     }
-  }, [targetUserId, allSubjects]);
+  }, [displayedSubjects, userSubjects]);
 
   // Active Timer interval
   useEffect(() => {
@@ -97,7 +116,7 @@ export default function StudyTracker({
       return;
     }
 
-    const currentSub = displayedSubjects.find(s => s.id === activeSubjectId);
+    const currentSub = userSubjects.find(s => s.id === activeSubjectId);
     const newSession: StudySession = {
       id: `sess-${Date.now()}`,
       userId: targetUserId,
@@ -124,7 +143,7 @@ export default function StudyTracker({
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const currentSub = displayedSubjects.find(s => s.id === manualSubjectId);
+    const currentSub = userSubjects.find(s => s.id === manualSubjectId);
     const newSession: StudySession = {
       id: `sess-${Date.now()}`,
       userId: targetUserId,
@@ -148,6 +167,7 @@ export default function StudyTracker({
       id: `sub-${Date.now()}`,
       userId: newSubUserId,
       name: newSubName.trim(),
+      stream: newSubStream.trim().toUpperCase() || undefined,
       color: newSubColor,
       targetMinutesToday: Number(newSubTargetMins),
       priority: newSubPriority,
@@ -162,23 +182,25 @@ export default function StudyTracker({
   };
 
   const totalMinsLoggedToday = displayedSessions.reduce((acc, curr) => acc + curr.durationMinutes, 0);
-  const totalTargetMinsToday = displayedSubjects.reduce((acc, curr) => acc + curr.targetMinutesToday, 0) || 240;
+  const totalTargetMinsToday = userSubjects.reduce((acc, curr) => acc + curr.targetMinutesToday, 0) || 240;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-stone-200/80 shadow-xs">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-amber-600" />
-            Competitive Exam & Study Tracker
-          </h2>
+            <h2 className="text-xl font-bold text-slate-800">
+              Curriculum & Study Tracker
+            </h2>
+          </div>
           <p className="text-xs text-stone-500 mt-1">
-            Tracking for <span className="font-semibold text-slate-700">{targetUserId === 'user_rishi' ? 'Rishi 🦊' : 'Dhruvi 🐼'}</span> • Target: {Math.floor(totalTargetMinsToday / 60)}h {totalTargetMinsToday % 60}m
+            Tracking for <span className="font-semibold text-slate-800">{targetUserId === 'user_rishi' ? 'Rishi 🦊 (MBA & LAW)' : 'Dhruvi 🐼 (CS & LLB)'}</span> • Total Target: {Math.floor(totalTargetMinsToday / 60)}h {totalTargetMinsToday % 60}m
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* User selector dropdown */}
           <div className="flex items-center gap-1.5 bg-stone-50 p-1.5 rounded-xl border border-stone-200">
             <span className="text-[11px] font-semibold text-stone-500 pl-1">For:</span>
@@ -187,8 +209,8 @@ export default function StudyTracker({
               onChange={(e) => setTargetUserId(e.target.value)}
               className="text-xs font-bold text-slate-800 bg-white border border-stone-200 rounded-lg px-2 py-1"
             >
-              <option value="user_rishi">🦊 Rishi</option>
-              <option value="user_dhruvi">🐼 Dhruvi</option>
+              <option value="user_rishi">🦊 Rishi (MBA / LAW)</option>
+              <option value="user_dhruvi">🐼 Dhruvi (CS / LLB)</option>
             </select>
           </div>
 
@@ -201,6 +223,7 @@ export default function StudyTracker({
           <button
             onClick={() => {
               setNewSubUserId(targetUserId);
+              setNewSubStream(targetUserId === 'user_dhruvi' ? 'CS' : 'MBA');
               setIsAddingSubject(!isAddingSubject);
             }}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-xs transition-all"
@@ -210,6 +233,38 @@ export default function StudyTracker({
           </button>
         </div>
       </div>
+
+      {/* Stream Tabs Filter (e.g. CS / LLB or MBA / LAW) */}
+      {availableStreams.length > 0 && (
+        <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-stone-200/80 shadow-xs">
+          <span className="text-xs font-semibold text-stone-400 px-3 flex items-center gap-1.5">
+            <GraduationCap className="w-3.5 h-3.5" /> Streams:
+          </span>
+          <button
+            onClick={() => setSelectedStream('ALL')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              selectedStream === 'ALL'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-stone-600 hover:bg-stone-100'
+            }`}
+          >
+            All Subjects ({userSubjects.length})
+          </button>
+          {availableStreams.map(st => (
+            <button
+              key={st}
+              onClick={() => setSelectedStream(st)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                selectedStream === st
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-stone-600 hover:bg-stone-100'
+              }`}
+            >
+              {st} ({userSubjects.filter(s => s.stream === st).length})
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Active Focus Timer Card */}
       <div className="bg-gradient-to-br from-amber-500/10 via-stone-50 to-orange-50/30 p-6 rounded-2xl border border-amber-200/70 shadow-xs">
@@ -271,10 +326,12 @@ export default function StudyTracker({
                 <select
                   value={activeSubjectId}
                   onChange={(e) => setActiveSubjectId(e.target.value)}
-                  className="w-full text-xs p-2 rounded-lg border border-stone-200 bg-white"
+                  className="w-full text-xs p-2 rounded-lg border border-stone-200 bg-white font-medium"
                 >
-                  {displayedSubjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>{sub.name}</option>
+                  {userSubjects.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.stream ? `[${sub.stream}] ` : ''}{sub.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -323,7 +380,7 @@ export default function StudyTracker({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Session Key Notes</label>
                 <input
                   type="text"
-                  placeholder="e.g. Speed drills, topic summary"
+                  placeholder="e.g. Case laws, problem sets, chapter notes"
                   value={sessionNotes}
                   onChange={(e) => setSessionNotes(e.target.value)}
                   className="w-full text-xs p-2 rounded-lg border border-stone-200"
@@ -337,24 +394,37 @@ export default function StudyTracker({
       {/* Add Subject Drawer with Member Dropdown */}
       {isAddingSubject && (
         <form onSubmit={handleCreateSubject} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-4">
-          <h3 className="font-semibold text-sm text-slate-800">Add New Subject / Topic Target</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+          <h3 className="font-semibold text-sm text-slate-800">Add New Subject / Course Target</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Save For</label>
               <select
                 value={newSubUserId}
-                onChange={(e) => setNewSubUserId(e.target.value)}
+                onChange={(e) => {
+                  setNewSubUserId(e.target.value);
+                  setNewSubStream(e.target.value === 'user_dhruvi' ? 'CS' : 'MBA');
+                }}
                 className="w-full text-xs p-2.5 rounded-xl border border-stone-200 font-bold bg-amber-50/50"
               >
                 <option value="user_rishi">🦊 Rishi</option>
                 <option value="user_dhruvi">🐼 Dhruvi</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Stream / Tag</label>
+              <input
+                type="text"
+                placeholder={newSubUserId === 'user_dhruvi' ? 'CS or LLB' : 'MBA or LAW'}
+                value={newSubStream}
+                onChange={(e) => setNewSubStream(e.target.value)}
+                className="w-full text-xs p-2.5 rounded-xl border border-stone-200 uppercase font-semibold"
+              />
+            </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-slate-700 mb-1">Subject Name</label>
               <input
                 type="text"
-                placeholder="e.g. Distributed Systems, Logic"
+                placeholder="e.g. Company Law, Marketing Analytics"
                 value={newSubName}
                 onChange={(e) => setNewSubName(e.target.value)}
                 required
@@ -388,7 +458,7 @@ export default function StudyTracker({
             <label className="block text-xs font-semibold text-slate-700 mb-1">Current Chapter / Topic</label>
             <input
               type="text"
-              placeholder="e.g. Dynamic Programming, Case Study Set 2"
+              placeholder="e.g. Chapter 4, Mock analysis"
               value={newSubTopic}
               onChange={(e) => setNewSubTopic(e.target.value)}
               className="w-full text-xs p-2.5 rounded-xl border border-stone-200"
@@ -433,10 +503,12 @@ export default function StudyTracker({
               <select
                 value={manualSubjectId}
                 onChange={(e) => setManualSubjectId(e.target.value)}
-                className="w-full text-xs p-2.5 rounded-xl border border-stone-200"
+                className="w-full text-xs p-2.5 rounded-xl border border-stone-200 font-medium"
               >
-                {displayedSubjects.map((sub) => (
-                  <option key={sub.id} value={sub.id}>{sub.name}</option>
+                {userSubjects.map((sub) => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.stream ? `[${sub.stream}] ` : ''}{sub.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -473,7 +545,7 @@ export default function StudyTracker({
       <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-sm text-slate-800">
-            Subject Targets & Progress for {targetUserId === 'user_rishi' ? 'Rishi 🦊' : 'Dhruvi 🐼'}
+            {targetUserId === 'user_rishi' ? 'Rishi 🦊 (MBA & LAW)' : 'Dhruvi 🐼 (CS & LLB)'} Curriculum ({displayedSubjects.length} subjects)
           </h3>
           <span className="text-xs font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200/60">
             Total Logged: {Math.floor(totalMinsLoggedToday / 60)}h {totalMinsLoggedToday % 60}m
@@ -489,12 +561,19 @@ export default function StudyTracker({
 
             return (
               <div key={sub.id} className="p-4 rounded-xl border border-stone-200 bg-stone-50/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: sub.color }} />
-                    <h4 className="font-bold text-sm text-slate-800">{sub.name}</h4>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <span className="w-3 h-3 rounded-full mt-1 shrink-0" style={{ backgroundColor: sub.color }} />
+                    <div>
+                      {sub.stream && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100/70 px-1.5 py-0.5 rounded mr-1.5">
+                          {sub.stream}
+                        </span>
+                      )}
+                      <h4 className="font-bold text-sm text-slate-800 inline leading-snug">{sub.name}</h4>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                       sub.priority === 'high' ? 'bg-rose-50 text-rose-700' : 'bg-stone-100 text-stone-600'
                     }`}>

@@ -29,6 +29,7 @@ export interface StudySubject {
   id: string;
   userId: string;
   name: string;
+  stream?: string; // e.g. 'CS', 'LLB', 'MBA', 'LAW'
   color: string;
   targetMinutesToday: number;
   priority: 'high' | 'medium' | 'low';

@@ -76,13 +76,20 @@ export default function TodayDashboard({
   const targetMinutes = currentUser.dailyStudyTargetMinutes || 240;
   const studyProgressPct = Math.min(100, Math.round((totalStudyMinutesToday / targetMinutes) * 100));
 
-  // Today events sorted
+  // Today events sorted for current user
   const myTodayEvents = events
     .filter(e => e.userId === currentUser.id && (e.date === todayStr || e.recurring === 'daily' || (e.recurring === 'weekdays' && [1,2,3,4,5].includes(new Date().getDay()))))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const [quickMinutes, setQuickMinutes] = useState(30);
   const [selectedSubjectId, setSelectedSubjectId] = useState(subjects[0]?.id || '');
+
+  // Keep quick-add select in sync with subjects
+  React.useEffect(() => {
+    if (subjects.length > 0 && (!selectedSubjectId || !subjects.some(s => s.id === selectedSubjectId))) {
+      setSelectedSubjectId(subjects[0].id);
+    }
+  }, [subjects, selectedSubjectId]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -93,10 +100,10 @@ export default function TodayDashboard({
             {currentDateFormatted}
           </div>
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
-            Good day, {currentUser.name.split(' ')[0]} {currentUser.avatar}
+            Good day, {currentUser.name} {currentUser.avatar}
           </h2>
           <p className="text-stone-600 text-sm mt-0.5">
-            Focus on sustainable consistency today. Every focused hour compounds.
+            Focus: <span className="font-semibold text-slate-800">{currentUser.exam}</span> • Consistent daily compounding beats sporadic intensity.
           </p>
         </div>
 
@@ -305,7 +312,7 @@ export default function TodayDashboard({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-amber-600" />
-                <h3 className="font-semibold text-slate-800">Today's Subject Focus</h3>
+                <h3 className="font-semibold text-slate-800">{currentUser.name}'s Curriculum Focus</h3>
               </div>
               <button
                 onClick={() => onNavigate('study')}
@@ -315,7 +322,7 @@ export default function TodayDashboard({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5 max-h-96 overflow-y-auto pr-1">
               {subjects.map((sub) => {
                 const loggedForSub = studySessions
                   .filter(s => s.subjectId === sub.id && s.date === todayStr)
@@ -326,17 +333,20 @@ export default function TodayDashboard({
 
                 return (
                   <div key={sub.id} className="p-3.5 rounded-xl border border-stone-200/70 bg-stone-50/40">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-semibold text-sm text-slate-800 flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: sub.color }} />
-                        {sub.name}
+                    <div className="flex items-start justify-between gap-1 mb-1.5">
+                      <span className="font-semibold text-xs text-slate-800 flex items-start gap-1.5 leading-snug">
+                        <span className="w-2.5 h-2.5 rounded-full mt-0.5 shrink-0" style={{ backgroundColor: sub.color }} />
+                        <span>
+                          {sub.stream && <span className="text-[10px] font-bold text-amber-800 bg-amber-100/70 px-1 py-0.2 rounded mr-1">[{sub.stream}]</span>}
+                          {sub.name}
+                        </span>
                       </span>
-                      <span className="text-xs font-medium text-stone-500">
+                      <span className="text-[11px] font-medium text-stone-500 shrink-0">
                         {loggedForSub}m / {sub.targetMinutesToday}m
                       </span>
                     </div>
                     {sub.topicToday && (
-                      <p className="text-xs text-stone-500 mb-2 truncate">Topic: {sub.topicToday}</p>
+                      <p className="text-[11px] text-stone-500 mb-2 truncate">Topic: {sub.topicToday}</p>
                     )}
                     <div className="w-full bg-stone-200/80 rounded-full h-1.5 overflow-hidden">
                       <div
@@ -351,16 +361,18 @@ export default function TodayDashboard({
 
             {/* Quick Session Logger */}
             <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/50 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-semibold text-amber-900">Quick-log study time:</span>
                 <select
                   aria-label="Select Subject"
                   value={selectedSubjectId}
                   onChange={(e) => setSelectedSubjectId(e.target.value)}
-                  className="text-xs bg-white border border-stone-200 rounded-lg p-1.5 font-medium text-slate-700"
+                  className="text-xs bg-white border border-stone-200 rounded-lg p-1.5 font-medium text-slate-700 max-w-xs truncate"
                 >
                   {subjects.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.stream ? `[${s.stream}] ` : ''}{s.name}
+                    </option>
                   ))}
                 </select>
                 <select
